@@ -1,0 +1,33 @@
+| ============================================
+| Log Analysis Detection Queries
+| ============================================
+
+| -- Query 1: Failed SSH Logins --
+index=* sourcetype=linux_secure "Failed password"
+| rex field=_raw "Failed password for (invalid user )?(?<user>\w+) from (?<src_ip>[\d\.]+)"
+| stats count by user, src_ip, host
+| sort -count
+
+| -- Query 2: Suspicious PowerShell / CMD Execution --
+index=* sourcetype=WinEventLog EventCode=4688
+| search Process_Command_Line="*powershell*" OR Process_Command_Line="*cmd.exe*"
+| table _time, host, Account_Name, Process_Command_Line
+| sort -_time
+
+| -- Query 3: Sudo Abuse Detection --
+index=* sourcetype=linux_secure "sudo"
+| rex field=_raw "sudo:\s+(?<user>\w+).*COMMAND=(?<command>.+)"
+| table _time, host, user, command
+| sort -_time
+
+| -- Query 4: Brute Force SSH --
+index=* sourcetype=linux_secure "Failed password"
+| rex field=_raw "from (?<src_ip>[\d\.]+)"
+| stats count by src_ip
+| where count > 3
+| sort -count
+
+| -- Query 5: Malicious Cron Jobs --
+index=* sourcetype=linux_secure "cron"
+| rex field=_raw "CMD \((?<command>.+)\)"
+| table _time, host, command
