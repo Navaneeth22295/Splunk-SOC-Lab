@@ -1,0 +1,34 @@
+| ============================================
+| Threat Detection Queries — MITRE ATT&CK
+| ============================================
+
+| -- T1110: Brute Force --
+index=* (sourcetype=WinEventLog EventCode=4625) OR (sourcetype=linux_secure "Failed password")
+| rex field=_raw "(?:Account_Name=|for (?:invalid user )?)(?<user>\w+)"
+| rex field=_raw "(?:src_ip=|from )(?<src_ip>[\d\.]+)"
+| stats count by user, src_ip, sourcetype
+| where count > 3
+| sort -count
+
+| -- T1059.001: PowerShell Execution --
+index=* sourcetype=WinEventLog EventCode=4688
+| search Process_Command_Line="*powershell*"
+| table _time, host, Account_Name, Process_Command_Line
+| sort -_time
+
+| -- T1136: Create Local Account --
+index=* sourcetype=linux_secure "sudo"
+| rex field=_raw "sudo:\s+(?<user>\w+).*COMMAND=(?<command>.+)"
+| search command="*useradd*" OR command="*passwd*"
+| table _time, host, user, command
+
+| -- T1053: Scheduled Task / Cron --
+index=* sourcetype=linux_secure "cron"
+| rex field=_raw "CMD \((?<command>.+)\)"
+| table _time, host, command
+
+| -- T1548: Privilege Escalation via Sudo --
+index=* sourcetype=linux_secure "sudo"
+| rex field=_raw "sudo:\s+(?<user>\w+).*COMMAND=(?<command>.+)"
+| search command="*chmod*" OR command="*shadow*" OR command="*passwd*"
+| table _time, host, user, command
